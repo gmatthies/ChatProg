@@ -103,6 +103,7 @@ main = do
     disconnectB <- myQPushButton "Disconnect"
     setDisabled disconnectB True
 
+    -- Connect buttons to toggle function
     connectSlot connectB "clicked()" connectB "click()" $toggleButton disconnectB
     connectSlot disconnectB "clicked()" disconnectB "click()" $toggleButton connectB
 
