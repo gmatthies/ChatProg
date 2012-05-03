@@ -169,7 +169,7 @@ startServer stopB sendB prompt chatE chatD server socket this = do
             append chatD $ "PORT:       2222"
             append chatD $ "Server is running..."
 
-            -- Now, we need to connect newConnection slot to a useful function
+            -- Now, we need talo connect newConnection slot to a useful function
 {--
       QObject.connect(self.tcpServer, SIGNAL("newConnection()"), self.newConnectionArrives )
       QObject.connect(self.lineedit, SIGNAL("returnPressed()"), self.lineeditReturnPressed )
@@ -179,7 +179,15 @@ startServer stopB sendB prompt chatE chatD server socket this = do
             connectSlot sendB "clicked()" sendB "sendMessage()" $ sendMessage server socket chatD prompt chatE
 
 --startServer stopB sendB prompt chatE chatD server socket this
---stopServer :: MyQPushButton -> QTcpServer () -> QTcpSocket () -> IO ()
+stopServer :: MyQPushButton -> MyQPushButton -> QLineEdit () -> QTextEdit () -> QTcpServer () -> QTcpSocket () -> MyQPushButton -> IO ()
+stopServer startB sendB chatE chatD server socket this = do
+    setEnabled startB True
+    setEnabled this False
+
+    disconnectSlot sendB "clicked()"
+    disconnectSlot chatE "returnPressed()"
+    disconnectSlot server "newConnection()"
+    append chatD "Server is disconnected..."
 
 main :: IO Int
 main = do
@@ -218,7 +226,8 @@ main = do
     -- Connect start and stop buttons to appropriate functions
     -- Connect buttons to toggle function
     connectSlot startB "clicked()" startB "startServer()" $startServer stopB sendB serverPrompt chatEntry chatDisplay tcpServer tcpSocket
-    connectSlot stopB "clicked()" stopB "click()" $toggleButton startB
+
+    connectSlot stopB "clicked()" stopB "stopServer()" $ stopServer startB sendB chatEntry chatDisplay tcpServer tcpSocket
 
 
     qshow mainWindow ()
