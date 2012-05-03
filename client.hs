@@ -139,6 +139,7 @@ main = do
 
     -- This is the large main chat display area
     chatDisplay <- qTextEdit ()
+    setReadOnly chatDisplay True
 
     -- Main window for server GUI
     mainWindow <- qMainWindow ()

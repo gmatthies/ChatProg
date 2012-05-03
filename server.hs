@@ -153,6 +153,11 @@ startServer stopB sendB prompt chatE chatD server socket this = do
     listenAddress <- qHostAddress hostAddress
     listen server (listenAddress, (2222::Int))
 
+    -- Start off by disconnecting the slots 
+    disconnectSlot server "newConnection()"
+    disconnectSlot chatE "returnPressed()"
+    disconnectSlot sendB "clicked()"
+
     listenbool <- isListening server ()
     if listenbool /= True
         then do
@@ -173,6 +178,9 @@ startServer stopB sendB prompt chatE chatD server socket this = do
             connectSlot chatE "returnPressed()" sendB "sendMessage()" $ sendMessage server socket chatD prompt chatE
             connectSlot sendB "clicked()" sendB "sendMessage()" $ sendMessage server socket chatD prompt chatE
 
+--startServer stopB sendB prompt chatE chatD server socket this
+--stopServer :: MyQPushButton -> QTcpServer () -> QTcpSocket () -> IO ()
+
 main :: IO Int
 main = do
     qApplication ()
@@ -189,6 +197,7 @@ main = do
 
     -- This is the large main chat display area
     chatDisplay <- qTextEdit ()
+    setReadOnly chatDisplay True
 
     -- Main window for server GUI
     mainWindow <- qMainWindow ()
