@@ -24,6 +24,9 @@ data CMyQPushButton = CMyQPushButton
 myQPushButton :: String -> IO (MyQPushButton)
 myQPushButton b = qSubClass $ qPushButton b
 
+hostAddress = "0.0.0.0"
+portNum = (2222::Int)
+
 updateName :: QLineEdit () -> QLabel () -> QDialog () -> MyQPushButton -> IO ()
 updateName le la dia this = do
     theName <- text le ()
@@ -48,25 +51,6 @@ showUserName namelabel = do
     connectSlot pb "clicked()" pb "click()" $ updateName le namelabel dialog
 
     exec dialog ()
-
-toggleButton :: MyQPushButton -> MyQPushButton  -> IO ()
-toggleButton aButton this = do
-    status <- isEnabled aButton ()
-    if status == True
-        then do
-            -- This should never get executed because the only way
-            -- To push a button is if the other one is disabled
-            -- Which implies the button pressed is already enabled
-            -- Otherwise, it could not have been pressed :)
-            putStrLn "aButton is enabled"
-            setEnabled aButton False
-            setEnabled this True
-        else do
-            buttontext <- text aButton ()
-            putStr buttontext 
-            putStr " is disabled\n"
-            setEnabled aButton True
-            setEnabled this False
 
 -- I admit, this is an ugly approach
 initServerGui startB stopB sendB chatEntry username chatDisplay mainWindow = do
@@ -134,8 +118,8 @@ handleReadSocket chatDisplay socket = do
     append chatDisplay contents
 
 -- Sends a message to the connected client (button
-sendMessage :: QTcpServer () -> QTcpSocket () -> QTextEdit () -> String -> QLineEdit () -> MyQPushButton -> IO () 
-sendMessage server socket chatDisplay prompt chatEntry this = do
+sendMessage :: QTcpSocket () -> QTextEdit () -> String -> QLineEdit () -> MyQPushButton -> IO () 
+sendMessage socket chatDisplay prompt chatEntry this = do
     linetext <- text chatEntry ()
     let message = prompt ++ linetext
     append chatDisplay message
@@ -149,9 +133,8 @@ sendMessage server socket chatDisplay prompt chatEntry this = do
 startServer :: MyQPushButton -> MyQPushButton -> String -> QLineEdit () -> QTextEdit () -> QTcpServer () -> QTcpSocket () -> MyQPushButton -> IO ()
 startServer stopB sendB prompt chatE chatD server socket this = do
     -- Set up host address and listen on port 2222
-    let hostAddress = "0.0.0.0"
     listenAddress <- qHostAddress hostAddress
-    listen server (listenAddress, (2222::Int))
+    listen server (listenAddress, portNum)
 
     -- Start off by disconnecting the slots 
     disconnectSlot server "newConnection()"
@@ -175,8 +158,8 @@ startServer stopB sendB prompt chatE chatD server socket this = do
       QObject.connect(self.lineedit, SIGNAL("returnPressed()"), self.lineeditReturnPressed )
 --}
             connectSlot server "newConnection()" server "handleNewClient()" $ handleNewClient socket chatD
-            connectSlot chatE "returnPressed()" sendB "sendMessage()" $ sendMessage server socket chatD prompt chatE
-            connectSlot sendB "clicked()" sendB "sendMessage()" $ sendMessage server socket chatD prompt chatE
+            connectSlot chatE "returnPressed()" sendB "sendMessage()" $ sendMessage socket chatD prompt chatE
+            connectSlot sendB "clicked()" sendB "sendMessage()" $ sendMessage socket chatD prompt chatE
 
 --startServer stopB sendB prompt chatE chatD server socket this
 stopServer :: MyQPushButton -> MyQPushButton -> QLineEdit () -> QTextEdit () -> QTcpServer () -> QTcpSocket () -> MyQPushButton -> IO ()
@@ -224,7 +207,6 @@ main = do
     tcpSocket <- qTcpSocket ()
 
     -- Connect start and stop buttons to appropriate functions
-    -- Connect buttons to toggle function
     connectSlot startB "clicked()" startB "startServer()" $startServer stopB sendB serverPrompt chatEntry chatDisplay tcpServer tcpSocket
 
     connectSlot stopB "clicked()" stopB "stopServer()" $ stopServer startB sendB chatEntry chatDisplay tcpServer tcpSocket
