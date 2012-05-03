@@ -24,6 +24,9 @@ data CMyQPushButton = CMyQPushButton
 myQPushButton :: String -> IO (MyQPushButton)
 myQPushButton b = qSubClass $ qPushButton b
 
+hostAddress = "127.0.0.1"
+portNum = (2222::Int)
+
 updateName :: QLineEdit () -> QLabel () -> QDialog () -> MyQPushButton -> IO ()
 updateName le la dia this = do
     theName <- text le ()
@@ -49,26 +52,7 @@ showUserName namelabel = do
 
     exec dialog ()
 
-toggleButton :: MyQPushButton -> MyQPushButton -> IO ()
-toggleButton aButton this = do
-    status <- isEnabled aButton ()
-    if status == True
-        then do
-            -- This should never get executed because the only way
-            -- To push a button is if the other one is disabled
-            -- Which implies the button pressed is already enabled
-            -- Otherwise, it could not have been pressed :)
-            putStrLn "aButton is enabled"
-            setEnabled aButton False
-            setEnabled this True
-        else do
-            buttontext <- text aButton ()
-            putStr buttontext 
-            putStr " is disabled\n"
-            setEnabled aButton True
-            setEnabled this False
-
-initServerGui connectB disconnectB username chatDisplay mainWindow = do
+initClientGui connectB disconnectB sendB chatEntry username chatDisplay mainWindow = do
     -- Main vertical box layout
     vlayout <- qVBoxLayout ()
 
@@ -89,8 +73,8 @@ initServerGui connectB disconnectB username chatDisplay mainWindow = do
     setDisabled disconnectB True
 
     -- Connect buttons to toggle function
-    connectSlot connectB "clicked()" connectB "click()" $toggleButton disconnectB
-    connectSlot disconnectB "clicked()" disconnectB "click()" $toggleButton connectB
+    -- connectSlot connectB "clicked()" connectB "click()" $toggleButton disconnectB
+    -- connectSlot disconnectB "clicked()" disconnectB "click()" $toggleButton connectB
 
     setAlignment portlabel (fAlignCenter::Alignment)
 
@@ -108,10 +92,6 @@ initServerGui connectB disconnectB username chatDisplay mainWindow = do
     row2layout <- qHBoxLayout ()
     addWidget row2layout chatDisplay
 
-    -- These two widgets comprise the last line
-    chatEntry <- qLineEdit ()
-    sendB <- qPushButton "Send"
-
     row3layout <- qHBoxLayout ()
 
     addWidget row3layout chatEntry
@@ -127,6 +107,52 @@ initServerGui connectB disconnectB username chatDisplay mainWindow = do
 
     setCentralWidget mainWindow centralWidget
 
+-- Sends a message to the connected client (button
+sendMessage :: QTcpSocket () -> QTextEdit () -> String -> QLineEdit () -> MyQPushButton -> IO () 
+sendMessage socket chatDisplay prompt chatEntry this = do
+    linetext <- text chatEntry ()
+    let message = prompt ++ linetext
+    append chatDisplay message
+    write socket message
+    clear chatEntry ()
+
+-- Connects client to the server
+connectToServer :: MyQPushButton -> MyQPushButton -> String -> QLineEdit () -> QTcpSocket () -> QTextEdit () -> MyQPushButton -> IO ()
+connectToServer disconnectB sendB prompt chatE socket chatD this = do
+    setEnabled disconnectB True
+    setEnabled this False
+
+    -- I don't think this is working
+    connectToHost socket (hostAddress, (1543::Int))
+
+    valid <- qisValid socket ()
+
+    putStrLn valid
+
+    if valid == False
+        then do
+            append chatD "Error: Cannot connect to server!"
+        else do
+            append chatD "Connected to server!"
+            connectSlot chatE "returnPressed()" sendB "sendMessage()" $ sendMessage socket chatD prompt chatE
+            connectSlot sendB "clicked()" sendB "sendMessage()" $ sendMessage socket chatD prompt chatE
+            connectSlot socket "connected()" socket "socketConnected()" $ socketConnected chatD
+            connectSlot socket "readyRead()" socket "handleReadSocket()" $ handleReadSocket chatD 
+
+
+-- Processing to read from the socket and add contents to the chat display
+handleReadSocket :: QTextEdit () -> QTcpSocket () -> IO ()
+handleReadSocket chatDisplay socket = do
+    contents <- readAll socket ()
+    append chatDisplay contents
+
+socketConnected :: QTextEdit () -> QTcpSocket () -> IO ()
+socketConnected chatDisplay socket = do
+    let message = "Successfully connected to server!"
+    append chatDisplay message
+    write socket message
+    return ()
+    
 main :: IO Int
 main = do
     qApplication ()
@@ -137,6 +163,10 @@ main = do
     username <- qLabel "<None>"
     setFixedWidth username (80::Int)
 
+    -- These two widgets comprise the last line and the send message button
+    chatEntry <- qLineEdit ()
+    sendB <- myQPushButton "Send"
+
     -- This is the large main chat display area
     chatDisplay <- qTextEdit ()
     setReadOnly chatDisplay True
@@ -144,11 +174,19 @@ main = do
     -- Main window for server GUI
     mainWindow <- qMainWindow ()
 
-    initServerGui connectB disconnectB username chatDisplay mainWindow
+    initClientGui connectB disconnectB sendB chatEntry username chatDisplay mainWindow
 
     showUserName username
 
+    -- Get username from the label and build up a client promp string
+    -- This string will be appended with the message to send and sent to the server
+    usernameStr <- text username () 
+    let clientPrompt = usernameStr ++ " says: " 
+
+    tcpSocket <- qTcpSocket ()
+
+    connectSlot connectB "clicked()" connectB "connectToServer()" $ connectToServer disconnectB sendB clientPrompt chatEntry tcpSocket chatDisplay
+
     qshow mainWindow ()
     qApplicationExec ()
-
 
