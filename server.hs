@@ -1,6 +1,5 @@
 module Main where
 
-import Data.IORef
 import Qt -- By including all of Qt, my executable will be 
           -- fairly large
 
@@ -19,100 +18,199 @@ import Qtc.Gui.QLabel
 import Qtc.Gui.QLabel_h
 --}
 
-type MyQWidget = QWidgetSc (CMyQWidget)
-data CMyQWidget = CMyQWidget
-
-myQWidget :: QWidget () -> IO (MyQWidget)
-myQWidget mw = qSubClass $ qCast_QWidget mw
-
-type MyQTcpSocket = QTcpSocketSc (CMyQTcpSocket)
-data CMyQTcpSocket = CMyQTcpSocket
-
-myQTcpSocket :: (QTcpServer () -> () -> IO (QTcpSocket t0)) -> QTcpServer () -> IO (MyQTcpSocket)
-myQTcpSocket gf gp = qSubClass $ gf gp ()
+type MyQPushButton = QPushButtonSc (CMyQPushButton)
+data CMyQPushButton = CMyQPushButton
 
 myQPushButton :: String -> IO (MyQPushButton)
 myQPushButton b = qSubClass $ qPushButton b
 
-initRow1 :: IO (QHBoxLayout ())
-initRow1 = do
+updateName :: QLineEdit () -> QLabel () -> QDialog () -> MyQPushButton -> IO ()
+updateName le la dia this = do
+    theName <- text le ()
+    setText la theName
+    done dia (1::Int)
+    return ()    
+
+showUserName namelabel = do
+    dlayout <- qVBoxLayout ()
+    dialog <- qDialog ()
+
+    la <- qLabel "Enter name"
+    le <- qLineEdit ()
+    pb <- myQPushButton "Done"
+
+    addWidget dlayout la
+    addWidget dlayout le
+    addWidget dlayout pb
+
+    setLayout dialog dlayout
+
+    connectSlot pb "clicked()" pb "click()" $ updateName le namelabel dialog
+
+    exec dialog ()
+
+toggleButton :: MyQPushButton -> MyQPushButton  -> IO ()
+toggleButton aButton this = do
+    status <- isEnabled aButton ()
+    if status == True
+        then do
+            -- This should never get executed because the only way
+            -- To push a button is if the other one is disabled
+            -- Which implies the button pressed is already enabled
+            -- Otherwise, it could not have been pressed :)
+            putStrLn "aButton is enabled"
+            setEnabled aButton False
+            setEnabled this True
+        else do
+            buttontext <- text aButton ()
+            putStr buttontext 
+            putStr " is disabled\n"
+            setEnabled aButton True
+            setEnabled this False
+
+-- I admit, this is an ugly approach
+initServerGui startB stopB sendB chatEntry username chatDisplay mainWindow = do
+    -- Main vertical box layout
+    vlayout <- qVBoxLayout ()
+
     -- First row holds username information
-    portlabel <- qLabel "Port:"
-    setFixedWidth portlabel (50::Int)
+    namelabel <- qLabel "Username:"
+    setFixedWidth namelabel (80::Int)
 
-    -- Use a spin box for the port number, restricting values to valid numbers
-    -- Default port number is 2222
-    portSpin  <- qSpinBox ()
-    setMinimum portSpin (1::Int)
-    setMaximum portSpin (65535::Int)
-    setValue portSpin (2222::Int)  
+    userlayout <- qHBoxLayout ()
 
-    startB <- myQPushButton "Start"
-    stopB <- myQPushButton "Stop"
+    addWidget userlayout namelabel
+    addWidget userlayout username
+    setAlignment userlayout (fAlignLeft::Alignment)
+
+    -- Default port is 2222 to connect
+    portlabel <- qLabel "Port:  2222"
+  
+    -- Disable the stop button (need to start server before we can disconnect)
     setDisabled stopB True
 
-    row1layoutL <- qHBoxLayout ()
-    row1layoutR <- qHBoxLayout ()
+    setAlignment portlabel (fAlignCenter::Alignment)
 
-    addWidget row1layoutL portlabel
-    addWidget row1layoutL portSpin
-    setAlignment row1layoutL (fAlignLeft::Alignment)
-    
-    addWidget row1layoutR startB
-    addWidget row1layoutR stopB 
-    setAlignment row1layoutR (fAlignRight::Alignment)
+    -- Second row contains numerous widgets, so lets use a horizontal box layout
+    row1layout <- qHBoxLayout ()
+    setSpacing row1layout (10::Int)
 
+    -- Add the above widgets to the first row
+    addLayout row1layout userlayout
+    addWidget row1layout portlabel
+    addWidget row1layout startB
+    addWidget row1layout stopB
 
-    row1 <- qHBoxLayout ()
-    addLayout row1 row1layoutL
-    addLayout row1 row1layoutR
-    return row1
+    -- Create layout for row2 (for consistency)
+    row2layout <- qHBoxLayout ()
+    addWidget row2layout chatDisplay
+
+    row3layout <- qHBoxLayout ()
+
+    addWidget row3layout chatEntry
+    addWidget row3layout sendB
+
+    -- Add row1, row2 and row3 to the main layout for the main window
+    addLayout vlayout row1layout
+    addLayout vlayout row2layout
+    addLayout vlayout row3layout
+
+    centralWidget <- qWidget ()
+    setLayout centralWidget vlayout
+
+    setCentralWidget mainWindow centralWidget
+
+-- Processing for when a new client connects
+handleNewClient :: QTcpSocket () -> QTextEdit () -> QTcpServer () -> IO ()
+handleNewClient socket chatDisplay server = do
+    socket <- nextPendingConnection server ()
+    append chatDisplay "Client has connected!"
+    connectSlot socket "readyRead()" socket "handleReadSocket()" $ handleReadSocket chatDisplay
+
+-- Processing to read from the socket and add contents to the chat display
+handleReadSocket :: QTextEdit () -> QTcpSocket () -> IO ()
+handleReadSocket chatDisplay socket = do
+    contents <- readAll socket ()
+    append chatDisplay contents
+
+-- Sends a message to the connected client (button
+sendMessage :: QTcpServer () -> QTcpSocket () -> QTextEdit () -> String -> QLineEdit () -> MyQPushButton -> IO () 
+sendMessage server socket chatDisplay prompt chatEntry this = do
+    linetext <- text chatEntry ()
+    let message = prompt ++ linetext
+    append chatDisplay message
+    write socket message
+    clear chatEntry ()
+
+-- Begins the server
+-- Due to not knowing how to use findChild, I am just passing each important widget around.
+-- Not an ideal solution, but I am not quite certain what to do other than this.
+-- Might be able to make a list and pass the list around...or at least a tuple
+startServer :: MyQPushButton -> MyQPushButton -> String -> QLineEdit () -> QTextEdit () -> QTcpServer () -> QTcpSocket () -> MyQPushButton -> IO ()
+startServer stopB sendB prompt chatE chatD server socket this = do
+    -- Set up host address and listen on port 2222
+    let hostAddress = "0.0.0.0"
+    listenAddress <- qHostAddress hostAddress
+    listen server (listenAddress, (2222::Int))
+
+    listenbool <- isListening server ()
+    if listenbool /= True
+        then do
+            append chatD "Error: Could not start server!"
+        else do
+            setEnabled this False
+            setEnabled stopB True  
+            append chatD $ "SERVER: " ++ hostAddress
+            append chatD $ "PORT:       2222"
+            append chatD $ "Server is running..."
+
+            -- Now, we need to connect newConnection slot to a useful function
+{--
+      QObject.connect(self.tcpServer, SIGNAL("newConnection()"), self.newConnectionArrives )
+      QObject.connect(self.lineedit, SIGNAL("returnPressed()"), self.lineeditReturnPressed )
+--}
+            connectSlot server "newConnection()" server "handleNewClient()" $ handleNewClient socket chatD
+            connectSlot chatE "returnPressed()" sendB "sendMessage()" $ sendMessage server socket chatD prompt chatE
+            connectSlot sendB "clicked()" sendB "sendMessage()" $ sendMessage server socket chatD prompt chatE
 
 main :: IO Int
 main = do
     qApplication ()
 
-    -- Main vertical box layout
-    vlayout <- qVBoxLayout ()
-  
-    -- Since row one is busy, move the creation into a function to clean up main
-    row1layout <- initRow1
+    startB <- myQPushButton "Start"
+    stopB <- myQPushButton "Stop"
 
-    {--
-    What I need to do is probably have an init_gui function to handle a huge chunk of initializing things
-    I need to make sure I can pass in the tree widget to the startClicked and stopClicked functions which still
-    to be made. In addition, I might get rid of the port spin box to just use a static value, should make things
-    easier. I might also just see about getting a server and client working such that only two people can connect.
-    NOTE: Email teacher about this, might be sufficient...and I could use the simplicity (if so, make it so that
-    both the server and client can be given names - Like Greg and Kathy)
+    -- These two widgets comprise the last line and the send message button
+    chatEntry <- qLineEdit ()
+    sendB <- myQPushButton "Send"
 
-    NOTE2: Along with this idea, might make sense to try and solve this "on paper" first
+    username <- qLabel "<None>"
+    setFixedWidth username (80::Int)
 
-    --}
+    -- This is the large main chat display area
+    chatDisplay <- qTextEdit ()
 
-    clientBox <- qGroupBox "Connected users"
+    -- Main window for server GUI
+    mainWindow <- qMainWindow ()
 
-    headerItem <- qTreeWidgetItem ()
-    setText headerItem (0::Int, "Host")
-    setText headerItem (1::Int, "Port")
-    setText headerItem (2::Int, "last")
+    initServerGui startB stopB sendB chatEntry username chatDisplay mainWindow
 
-    treeWidget <- qTreeWidget () 
-    setHeaderItem treeWidget headerItem   
+    showUserName username
 
-    treeLayout <- qVBoxLayout ()    
-    addWidget treeLayout treeWidget
+    -- Get username from the label and build up a client promp string
+    -- This string will be appended with the message to send and sent to the server
+    usernameStr <- text username () 
+    let serverPrompt = usernameStr ++ " says: " 
 
-    setLayout clientBox treeLayout    
+    -- Create TCP server and TCP socket
+    tcpServer <- qTcpServer ()
+    tcpSocket <- qTcpSocket ()
 
-    addLayout vlayout row1layout
-    addWidget vlayout clientBox
+    -- Connect start and stop buttons to appropriate functions
+    -- Connect buttons to toggle function
+    connectSlot startB "clicked()" startB "startServer()" $startServer stopB sendB serverPrompt chatEntry chatDisplay tcpServer tcpSocket
+    connectSlot stopB "clicked()" stopB "click()" $toggleButton startB
 
-    centralWidget <- qWidget ()
-    setLayout centralWidget vlayout
-    mainWindow <-qMainWindow ()
-
-    setCentralWidget mainWindow centralWidget
 
     qshow mainWindow ()
     qApplicationExec ()

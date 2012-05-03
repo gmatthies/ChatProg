@@ -68,79 +68,82 @@ toggleButton aButton this = do
             setEnabled aButton True
             setEnabled this False
 
-main :: IO Int
-main = do
-    qApplication ()
-
+initServerGui connectB disconnectB username chatDisplay mainWindow = do
     -- Main vertical box layout
     vlayout <- qVBoxLayout ()
 
     -- First row holds username information
     namelabel <- qLabel "Username:"
-    setFixedWidth namelabel (100::Int)
-    username <- qLabel "<None>"
+    setFixedWidth namelabel (80::Int)
 
     userlayout <- qHBoxLayout ()
 
     addWidget userlayout namelabel
     addWidget userlayout username
+    setAlignment userlayout (fAlignLeft::Alignment)
 
-    -- Second row contains numerous widgets, so lets use a horizontal box layout
-    row1layout <- qHBoxLayout ()
-
-    hostlabel <- qLabel "Host"
-    hostline  <- qLineEdit ()
-    portlabel <- qLabel "Port"
-
-    -- Use a spin box for the port number, restricting values to valid numbers
-    -- Default port number is 2222
-    portSpin  <- qSpinBox ()
-    setMinimum portSpin (1::Int)
-    setMaximum portSpin (65535::Int)
-    setValue portSpin (2222::Int)  
+    -- Default port is 2222 to connect
+    portlabel <- qLabel "Port:  2222"
   
-    connectB <- myQPushButton "Connect"
-    disconnectB <- myQPushButton "Disconnect"
+    -- Disable the disconnect button (need to connect to server before we can disconnect)
     setDisabled disconnectB True
 
     -- Connect buttons to toggle function
     connectSlot connectB "clicked()" connectB "click()" $toggleButton disconnectB
     connectSlot disconnectB "clicked()" disconnectB "click()" $toggleButton connectB
 
-    setAlignment hostlabel (fAlignCenter::Alignment)
     setAlignment portlabel (fAlignCenter::Alignment)
 
+    -- Second row contains numerous widgets, so lets use a horizontal box layout
+    row1layout <- qHBoxLayout ()
+    setSpacing row1layout (10::Int)
+
     -- Add the above widgets to the first row
-    addWidget row1layout hostlabel
-    addWidget row1layout hostline
+    addLayout row1layout userlayout
     addWidget row1layout portlabel
-    addWidget row1layout portSpin
     addWidget row1layout connectB
     addWidget row1layout disconnectB
 
-
-    -- This is the large main chat display area (second row)
-    chatDisplay <- qTextEdit ()
+    -- Create layout for row2 (for consistency)
+    row2layout <- qHBoxLayout ()
+    addWidget row2layout chatDisplay
 
     -- These two widgets comprise the last line
     chatEntry <- qLineEdit ()
     sendB <- qPushButton "Send"
 
-    row2layout <- qHBoxLayout ()
+    row3layout <- qHBoxLayout ()
 
-    addWidget row2layout chatEntry
-    addWidget row2layout sendB
+    addWidget row3layout chatEntry
+    addWidget row3layout sendB
 
-    addLayout vlayout userlayout
+    -- Add row1, row2 and row3 to the main layout for the main window
     addLayout vlayout row1layout
-    addWidget vlayout chatDisplay
     addLayout vlayout row2layout
+    addLayout vlayout row3layout
 
     centralWidget <- qWidget ()
     setLayout centralWidget vlayout
-    mainWindow <-qMainWindow ()
 
     setCentralWidget mainWindow centralWidget
+
+main :: IO Int
+main = do
+    qApplication ()
+
+    connectB <- myQPushButton "Connect"
+    disconnectB <- myQPushButton "Disconnect"
+
+    username <- qLabel "<None>"
+    setFixedWidth username (80::Int)
+
+    -- This is the large main chat display area
+    chatDisplay <- qTextEdit ()
+
+    -- Main window for server GUI
+    mainWindow <- qMainWindow ()
+
+    initServerGui connectB disconnectB username chatDisplay mainWindow
 
     showUserName username
 
