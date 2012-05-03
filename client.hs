@@ -122,17 +122,21 @@ connectToServer disconnectB sendB prompt chatE socket chatD this = do
     setEnabled disconnectB True
     setEnabled this False
 
+    connectSlot socket "connecting()" socket "socketConnecting()" $ socketConnecting chatD
+
     -- I don't think this is working
-    connectToHost socket (hostAddress, (1543::Int))
+    connectToHost socket (hostAddress, portNum)
 
     valid <- qisValid socket ()
 
-    putStrLn valid
+    print valid
 
     if valid == False
         then do
             append chatD "Error: Cannot connect to server!"
         else do
+            sockstate <- state socket ()
+            print sockstate
             append chatD "Connected to server!"
             connectSlot chatE "returnPressed()" sendB "sendMessage()" $ sendMessage socket chatD prompt chatE
             connectSlot sendB "clicked()" sendB "sendMessage()" $ sendMessage socket chatD prompt chatE
@@ -145,6 +149,12 @@ handleReadSocket :: QTextEdit () -> QTcpSocket () -> IO ()
 handleReadSocket chatDisplay socket = do
     contents <- readAll socket ()
     append chatDisplay contents
+
+socketConnecting :: QTextEdit () -> QTcpSocket () -> IO ()
+socketConnecting chatDisplay socket = do
+    putStrLn "connecting..."
+    append chatDisplay "connecting..."
+    return ()
 
 socketConnected :: QTextEdit () -> QTcpSocket () -> IO ()
 socketConnected chatDisplay socket = do
