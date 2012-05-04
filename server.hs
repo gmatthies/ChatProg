@@ -152,11 +152,6 @@ startServer stopB sendB prompt chatE chatD server socket this = do
             append chatD $ "PORT:       2222"
             append chatD $ "Server is running..."
 
-            -- Now, we need talo connect newConnection slot to a useful function
-{--
-      QObject.connect(self.tcpServer, SIGNAL("newConnection()"), self.newConnectionArrives )
-      QObject.connect(self.lineedit, SIGNAL("returnPressed()"), self.lineeditReturnPressed )
---}
             connectSlot server "newConnection()" server "handleNewClient()" $ handleNewClient socket chatD
             connectSlot chatE "returnPressed()" sendB "sendMessage()" $ sendMessage socket chatD prompt chatE
             connectSlot sendB "clicked()" sendB "sendMessage()" $ sendMessage socket chatD prompt chatE
@@ -167,10 +162,12 @@ stopServer startB sendB chatE chatD server socket this = do
     setEnabled startB True
     setEnabled this False
 
+    append chatD "Server is disconnected..."
+
     disconnectSlot sendB "clicked()"
     disconnectSlot chatE "returnPressed()"
     disconnectSlot server "newConnection()"
-    append chatD "Server is disconnected..."
+    return ()
 
 main :: IO Int
 main = do
@@ -214,5 +211,4 @@ main = do
 
     qshow mainWindow ()
     qApplicationExec ()
-
 
