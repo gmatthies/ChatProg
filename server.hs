@@ -159,10 +159,12 @@ stopServer startB sendB chatE chatD server socket this = do
     setEnabled startB True
     setEnabled this False
 
+    append chatD "Server is disconnected..."
+
     disconnectSlot sendB "clicked()"
     disconnectSlot chatE "returnPressed()"
     disconnectSlot server "newConnection()"
-    append chatD "Server is disconnected..."
+    return ()
 
 updateName :: QLineEdit () -> QLabel () -> QDialog () -> MyQPushButton -> IO ()
 updateName nameEntry namelabel dialog this = do

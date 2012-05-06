@@ -24,7 +24,7 @@ data CMyQPushButton = CMyQPushButton
 myQPushButton :: String -> IO (MyQPushButton)
 myQPushButton b = qSubClass $ qPushButton b
 
-hostAddress = "127.0.0.1"
+hostAddress = "0.0.0.0"
 portNum = (2222::Int)
 
 -- Connects client to the server
@@ -72,7 +72,6 @@ handleSendMessage socket chatDisplay prompt chatEntry this = do
         else do
             return ()
 
-
 handleSocketConnected :: QTextEdit () -> QTcpSocket () -> IO ()
 handleSocketConnected chatDisplay socket = do
     let message = "Successfully connected to server!"
@@ -89,17 +88,15 @@ initClientGui connectB disconnectB sendB chatEntry username chatDisplay mainWind
     setFixedWidth namelabel (80::Int)
 
     userlayout <- qHBoxLayout ()
-
     addWidget userlayout namelabel
     addWidget userlayout username
     setAlignment userlayout (fAlignLeft::Alignment)
 
     portlabel <- qLabel ("Port:  " ++ (show portNum))
+    setAlignment portlabel (fAlignCenter::Alignment)
   
     -- Disable the disconnect button (need to connect to server before we can disconnect)
     setDisabled disconnectB True
-
-    setAlignment portlabel (fAlignCenter::Alignment)
 
     -- Second row contains numerous widgets, so lets use a horizontal box layout
     row1layout <- qHBoxLayout ()
@@ -142,10 +139,6 @@ showUserName namelabel = do
     addWidget dlayout nameEntry
     addWidget dlayout doneB
 
-    setLayout dialog dlayout
-
-    connectSlot doneB "clicked()" doneB "updateName()" $ updateName nameEntry namelabel dialog
-
     exec dialog ()
 
 updateName :: QLineEdit () -> QLabel () -> QDialog () -> MyQPushButton -> IO ()
@@ -180,7 +173,7 @@ main = do
 
     showUserName username
 
-    -- Get username from the label and build up a client promp string
+    -- Get username from the label and build up a client prompt string
     -- This string will be appended with the message to send and sent to the server
     usernameStr <- text username () 
     let clientPrompt = usernameStr ++ " says: " 
