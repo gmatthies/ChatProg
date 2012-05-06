@@ -139,6 +139,10 @@ showUserName namelabel = do
     addWidget dlayout nameEntry
     addWidget dlayout doneB
 
+    setLayout dialog dlayout
+
+    connectSlot doneB "clicked()" doneB "updateName()" $ updateName nameEntry namelabel dialog
+
     exec dialog ()
 
 updateName :: QLineEdit () -> QLabel () -> QDialog () -> MyQPushButton -> IO ()
