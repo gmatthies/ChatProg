@@ -27,30 +27,32 @@ myQPushButton b = qSubClass $ qPushButton b
 hostAddress = "0.0.0.0"
 portNum = (2222::Int)
 
-updateName :: QLineEdit () -> QLabel () -> QDialog () -> MyQPushButton -> IO ()
-updateName le la dia this = do
-    theName <- text le ()
-    setText la theName
-    done dia (1::Int)
-    return ()    
+-- Processing for when a new client connects
+handleNewClient :: QTcpSocket () -> QTextEdit () -> QTcpServer () -> IO ()
+handleNewClient socket chatDisplay server = do
+    socket <- nextPendingConnection server ()
+    append chatDisplay "Client has connected!"
+    connectSlot socket "readyRead()" socket "handleReadSocket()" $ handleReadSocket chatDisplay
 
-showUserName namelabel = do
-    dlayout <- qVBoxLayout ()
-    dialog <- qDialog ()
+-- Processing to read from the socket and add contents to the chat display
+handleReadSocket :: QTextEdit () -> QTcpSocket () -> IO ()
+handleReadSocket chatDisplay socket = do
+    contents <- readAll socket ()
+    append chatDisplay contents
 
-    la <- qLabel "Enter name"
-    le <- qLineEdit ()
-    pb <- myQPushButton "Done"
-
-    addWidget dlayout la
-    addWidget dlayout le
-    addWidget dlayout pb
-
-    setLayout dialog dlayout
-
-    connectSlot pb "clicked()" pb "click()" $ updateName le namelabel dialog
-
-    exec dialog ()
+-- Sends a message to the connected client (button
+handleSendMessage :: QTcpSocket () -> QTextEdit () -> String -> QLineEdit () -> MyQPushButton -> IO () 
+handleSendMessage socket chatDisplay prompt chatEntry this = do
+    linetext <- text chatEntry ()
+    -- Don't send empty strings
+    if length linetext > 0
+        then do
+            let message = prompt ++ linetext
+            append chatDisplay message
+            write socket message
+            clear chatEntry ()
+        else do
+            return ()
 
 -- I admit, this is an ugly approach
 initServerGui startB stopB sendB chatEntry username chatDisplay mainWindow = do
@@ -67,8 +69,7 @@ initServerGui startB stopB sendB chatEntry username chatDisplay mainWindow = do
     addWidget userlayout username
     setAlignment userlayout (fAlignLeft::Alignment)
 
-    -- Default port is 2222 to connect
-    portlabel <- qLabel "Port:  2222"
+    portlabel <- qLabel ("Port:  " ++ (show portNum))
   
     -- Disable the stop button (need to start server before we can disconnect)
     setDisabled stopB True
@@ -104,27 +105,23 @@ initServerGui startB stopB sendB chatEntry username chatDisplay mainWindow = do
 
     setCentralWidget mainWindow centralWidget
 
--- Processing for when a new client connects
-handleNewClient :: QTcpSocket () -> QTextEdit () -> QTcpServer () -> IO ()
-handleNewClient socket chatDisplay server = do
-    socket <- nextPendingConnection server ()
-    append chatDisplay "Client has connected!"
-    connectSlot socket "readyRead()" socket "handleReadSocket()" $ handleReadSocket chatDisplay
+showUserName namelabel = do
+    dlayout <- qVBoxLayout ()
+    dialog <- qDialog ()
 
--- Processing to read from the socket and add contents to the chat display
-handleReadSocket :: QTextEdit () -> QTcpSocket () -> IO ()
-handleReadSocket chatDisplay socket = do
-    contents <- readAll socket ()
-    append chatDisplay contents
+    nameEntryLabel <- qLabel "Enter name"
+    nameEntry <- qLineEdit ()
+    doneB <- myQPushButton "Done"
 
--- Sends a message to the connected client (button
-sendMessage :: QTcpSocket () -> QTextEdit () -> String -> QLineEdit () -> MyQPushButton -> IO () 
-sendMessage socket chatDisplay prompt chatEntry this = do
-    linetext <- text chatEntry ()
-    let message = prompt ++ linetext
-    append chatDisplay message
-    write socket message
-    clear chatEntry ()
+    addWidget dlayout nameEntryLabel
+    addWidget dlayout nameEntry
+    addWidget dlayout doneB
+
+    setLayout dialog dlayout
+
+    connectSlot doneB "clicked()" doneB "updateName()" $ updateName nameEntry namelabel dialog
+
+    exec dialog ()
 
 -- Begins the server
 -- Due to not knowing how to use findChild, I am just passing each important widget around.
@@ -149,17 +146,12 @@ startServer stopB sendB prompt chatE chatD server socket this = do
             setEnabled this False
             setEnabled stopB True  
             append chatD $ "SERVER: " ++ hostAddress
-            append chatD $ "PORT:       2222"
+            append chatD $ "PORT:       " ++ (show portNum)
             append chatD $ "Server is running..."
 
-            -- Now, we need talo connect newConnection slot to a useful function
-{--
-      QObject.connect(self.tcpServer, SIGNAL("newConnection()"), self.newConnectionArrives )
-      QObject.connect(self.lineedit, SIGNAL("returnPressed()"), self.lineeditReturnPressed )
---}
             connectSlot server "newConnection()" server "handleNewClient()" $ handleNewClient socket chatD
-            connectSlot chatE "returnPressed()" sendB "sendMessage()" $ sendMessage socket chatD prompt chatE
-            connectSlot sendB "clicked()" sendB "sendMessage()" $ sendMessage socket chatD prompt chatE
+            connectSlot chatE "returnPressed()" sendB "handleSendMessage()" $ handleSendMessage socket chatD prompt chatE
+            connectSlot sendB "clicked()" sendB "handleSendMessage()" $ handleSendMessage socket chatD prompt chatE
 
 --startServer stopB sendB prompt chatE chatD server socket this
 stopServer :: MyQPushButton -> MyQPushButton -> QLineEdit () -> QTextEdit () -> QTcpServer () -> QTcpSocket () -> MyQPushButton -> IO ()
@@ -171,6 +163,13 @@ stopServer startB sendB chatE chatD server socket this = do
     disconnectSlot chatE "returnPressed()"
     disconnectSlot server "newConnection()"
     append chatD "Server is disconnected..."
+
+updateName :: QLineEdit () -> QLabel () -> QDialog () -> MyQPushButton -> IO ()
+updateName nameEntry namelabel dialog this = do
+    theName <- text nameEntry ()
+    setText namelabel theName
+    done dialog (1::Int)
+    return ()   
 
 main :: IO Int
 main = do
@@ -214,5 +213,4 @@ main = do
 
     qshow mainWindow ()
     qApplicationExec ()
-
 
