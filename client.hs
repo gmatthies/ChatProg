@@ -36,6 +36,8 @@ connectToServer disconnectB sendB prompt chatE socket chatD this = do
     -- I don't think this is working
     connectToHost socket (hostAddress, portNum)
 
+    wait <- waitForConnected socket (10000::Int) --Wait up to 10 seconds for a connection
+
     valid <- qisValid socket ()
 
     print valid
@@ -49,7 +51,7 @@ connectToServer disconnectB sendB prompt chatE socket chatD this = do
             append chatD "Connected to server!"
             connectSlot chatE "returnPressed()" sendB "handleSendMessage()" $ handleSendMessage socket chatD prompt chatE
             connectSlot sendB "clicked()" sendB "handleSendMessage()" $ handleSendMessage socket chatD prompt chatE
-            connectSlot socket "connected()" socket "handleSocketConnected()" $ handleSocketConnected chatD
+            connectSlot socket "connected()" server "handleSocketConnected()" $ handleSocketConnected chatD
             connectSlot socket "readyRead()" socket "handleReadSocket()" $ handleReadSocket chatD 
 
 -- Processing to read from the socket and add contents to the chat display
